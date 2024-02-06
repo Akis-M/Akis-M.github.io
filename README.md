@@ -1,7 +1,11 @@
-# Data Engineering, Data Analytics, Business Intelligence, Certified Chartered Accountant
+# Data Engineering, Data Analytics, Business Intelligence
 
 ### Education
-Business, Accounting & Finance, Bsc.
+B.Sc in Business, Accounting & Finance
+
+Chartered Certified Accountant
+
+Life-long learner, AI & Big Data enthusiast
 
 ### Work Experience
 Data Solutions Engineer @ PricewaterhouseCoopers Ltd
