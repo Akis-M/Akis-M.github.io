@@ -58,6 +58,35 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
 ### Section 2 - Sample Python scripts for data ingestion with Kinesis, preprocessing and loading to S3 with AWS Lambdas, workflow orchestration with Airflow DAG
 
+As an example, the below script can be used to ingest our data into AWS Kinesis
+
+```python
+import boto3
+import json
+
+# Initialize the Kinesis client outside of the function
+kinesis_client = boto3.client('kinesis')
+
+def send_data_to_kinesis(stream_name, data, partition_key):
+  try:
+    kinesis_client.put_record(
+      StreamName=stream_name,
+      Data=json.dumps(data),
+      PartitionKey=partition_key
+    )
+ except Exception as e:
+   # Handle exceptions (e.g., logging)
+   print(f"Error sending data to Kinesis: {e}")
+ 
+# Example data ingestion
+stream_name = 'game_data_stream'
+data = {'event': 'new_session', 'user_id': '12345', 'timestamp': '2023-04-01T12:00:00'}
+partition_key = str(data['user_id']) # Using user_id as the partition key for even distribution
+send_data_to_kinesis(stream_name, data, partition_key)
+```
+
+After the data is ingested, we can trigger an AWS Lambda function with Kinesis to preprocess (if needed) and load data to S3.
+
 ```python
 import boto3
 import json
@@ -100,7 +129,122 @@ def preprocess_data(data):
   return data
 ```
 
+We can also handle multiple steps of the pipeline within a single Airflow DAG, which can also handle orchestration/scheduling as required.
+
+```python
+# This is a sample DAG script showcasing one of the potential ways of automating the calculation of these metrics/aggregations in an end-to-end data pipeline setting. Only DAU, WAU, MAU metrics are used for this example. For full SQL queries of entire exercise, refer to the snowflake worksheet attachment
+
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from airflow.providers.snowflake.operators.snowflake import SnowflakeOperator
+from astro.sql import transform
+from astro import sql as aql
+
+# Assumed to be the location of the sample kinesis function included in the presentation
+from kinesis_utils import send_data_to_kinesis
+
+default_args = {
+    'owner': 'airflow',
+    'start_date': datetime(2023, 1, 1),
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+dag = DAG(
+    'game_data_etl',
+    default_args=default_args,
+
+# Since we're including not only the Daily Active Users SQL query in this DAG, it may not be necessary to run the DAG daily. However, since this is just a proof of concept and I wanted to showcase multiple queries in 1 DAG along with the option to schedule, I chose to use the daily value for demo purposes.
+    schedule_interval='@daily',
+    catchup=False
+)
+
+# Ingest data from Kinesis to S3. We're assuming that the send_data_to_kinesis function is a separate script that should be imported appropriately. A sample code for this function was provided in the presentation.
+def ingest_data():
+    # Assuming send_data_to_kinesis is defined elsewhere
+    data = {'event': 'new_session', 'user_id': '12345', 'timestamp': '2023-04-01T12:00:00'}
+    send_data_to_kinesis('game_data_stream', data)
+
+# Load data from S3 to Snowflake. We're assuming that the data is in CSV format
+load_data_sql = """
+COPY INTO your_table
+FROM 's3://{s3_bucket}/{s3_file_path}'
+CREDENTIALS = (AWS_KEY_ID = 'your_aws_access_key_id' AWS_SECRET_KEY = 'your_aws_secret_access_key')
+FILE_FORMAT = (TYPE = 'CSV' FIELD_DELIMITER = ',' SKIP_HEADER = 1);
+"""
+
+load_data_task = SnowflakeOperator(
+    task_id='load_data_from_s3_to_snowflake',
+    sql=load_data_sql,
+    snowflake_conn_id='your_snowflake_conn_id',
+    dag=dag
+)
+
+# Defining sample SQL queries for DAU, WAU, MAU. Refer to Snowflake_Worksheet.sql attachment for fully detailed SQL queries for the metrics/aggregations the technical task required, along with explanations.
+dau_query = """
+SELECT DATE(event_timestamp) AS date, COUNT(DISTINCT user_id) AS daily_active_users
+FROM session_started
+GROUP BY DATE(event_timestamp);
+"""
+
+wau_query = """
+SELECT DATE_TRUNC('week', event_timestamp) AS week_start_date, COUNT(DISTINCT user_id) AS weekly_active_users
+FROM session_started
+GROUP BY DATE_TRUNC('week', event_timestamp);
+"""
+
+mau_query = """
+SELECT DATE_TRUNC('month', event_timestamp) AS month_start_date, COUNT(DISTINCT user_id) AS monthly_active_users
+FROM session_started
+GROUP BY DATE_TRUNC('month', event_timestamp);
+"""
+
+# Tasks
+ingest_task = PythonOperator(
+    task_id='ingest_data',
+    python_callable=ingest_data,
+    dag=dag
+)
+
+load_data_task = SnowflakeOperator(
+    task_id='load_data_from_s3_to_snowflake',
+    sql=load_data_sql,
+    snowflake_conn_id='your_snowflake_conn_id',
+    dag=dag
+)
+
+dau_task = aql.transform(
+    conn_id="snowflake_conn",
+    sql=dau_query,
+    task_id="calculate_dau",
+    dag=dag
+)
+
+wau_task = aql.transform(
+    conn_id="snowflake_conn",
+    sql=wau_query,
+    task_id="calculate_wau",
+    dag=dag
+)
+
+mau_task = aql.transform(
+    conn_id="snowflake_conn",
+    sql=mau_query,
+    task_id="calculate_mau",
+    dag=dag
+)
+
+# Setting up dependencies
+ingest_task >> load_data_task
+load_data_task >> [dau_task, wau_task, mau_task]
+```
+
 ### Section 3 - Detailed Snowflake SQL queries and rationale for analyzing user data
+
+For a massively multiplayer online game, we need a big variety of metrics and KPIs that will help the product development team to not only maximize profits and user retention, but also to identify pain points and improve player experience. These queries involve huge snowflake databases, so cost management and efficiency are of high importance. Other than ensuring we have correct clustering setup and optimized queries, we need to also ensure that we're not unnecessarily querying the entire database every time our reporting tools need to be updated, while maintaining a real-time stream of data.
+
+To achieve this, we can use a mix of stored procedures/triggers/metadata timestamps techniques, depending on the database management system we're using. For the queries outlined below, this could be achieved for example by re-writing them as CTEs, and including a WHERE clause that compares system defined columns such as WHERE last_updated > (SELECT MAX(last_updated) FROM target_table)
 
 ```sql
 --Active Users
