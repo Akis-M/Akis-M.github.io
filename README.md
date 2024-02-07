@@ -189,9 +189,9 @@ SELECT COUNT(DISTINCT USER_ID) AS spenders,		--Since we want to count the number
 FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting from the purchases table as that's where the spending information is
 WHERE USD_COST > 0					--Again we're assuming this is the amount each user spent. Since we want spenders, this amount must be bigger than 0 to count as a spender
 GROUP BY week;						--Grouping by week (which we defined earlier as week)
+```
 
-
-
+```sql
 --ARPU (Average Revenue Per User)
 
 -- Daily ARPU
@@ -242,7 +242,9 @@ SELECT SUM(USD_COST) / COUNT(DISTINCT USER_ID) AS arppu,--To find the overall av
 FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting the relevant info from the purchases table
 WHERE USD_COST > 0					--We're defining paying user as any user that has made at least one purchase of over 0 usd
 GROUP BY week, PAYING_USER;				--Grouping by week (which we defined earlier as week) and user_id
+```
 
+```sql
 /*
 1 Day, 3 Day, 7 Day Retention Rates
 
@@ -293,7 +295,9 @@ FROM    NEW_USER u
 LEFT JOIN IN_APP_PURCHASE_LOG_SERVER p ON u.USER_ID = p.USER_ID		--Here we use a left join because we want to make sure that all new users (u.USER_ID) are included in the analysis even if they didn't make a purchase
 GROUP BY DATE_TRUNC('week', u.EVENT_TIMESTAMP)				--In some database systems we might not be able to use the alias we defined next to the group by clause is because even though we write it at the end, it is actually evaluated before the select clause. But in more modern ones like postgresql and snowflake, you can use the alias anyway.
 ORDER BY Registration_Week;
+```
 
+```sql
 
 --Ships Owned By Every User Every Day. Amount of ships owned should be amount bought (SC<0) minus amount sold(SC>0) and not simply amount of ships bought.
 
@@ -311,7 +315,9 @@ SELECT  EVENT_TIMESTAMP::date AS date,
 FROM    SHIP_TRANSACTION_LOG
 GROUP BY    date, SHIP_ID
 ORDER BY    users_owning_ship DESC;
+```
 
+```sql
 --Amount of Battles, Logins, Days Since Registration Before First Purchase.
 
 --To write this query in a clean and optimized way, first we will define a common table expression to find the date of the first purchase per user 
@@ -349,7 +355,6 @@ DaysSinceRegistration AS (
     FROM   FirstPurchase fp
     JOIN   NEW_USER nu ON fp.USER_ID = nu.USER_ID
 )
-
 --This final section of the query combines the data from the above CTEs for each user. Since we're using LEFT JOINS to combine the data, there is the possibility of nulls. I chose to use COALESCE to handle users with 0 battles/logins/days before first purchase and get rid of null values that could possibly interfere with downstream analysis.
 SELECT  fp.USER_ID,
         COALESCE(bbp.BattlesBeforeFirstPurchase, 0) AS BattlesBeforeFirstPurchase,
@@ -359,7 +364,9 @@ FROM    FirstPurchase fp
 LEFT JOIN BattlesBeforePurchase bbp ON fp.USER_ID = bbp.USER_ID
 LEFT JOIN LoginsBeforePurchase lbp ON fp.USER_ID = lbp.USER_ID
 LEFT JOIN DaysSinceRegistration dsr ON fp.USER_ID = dsr.USER_ID;
+```
 
+```sql
 --Daily/Weekly/Monthly Revenue per User.
 
 -- Daily Revenue per User
@@ -382,10 +389,10 @@ SELECT SUM(USD_COST) AS revenue_per_user,
        user_id
 FROM IN_APP_PURCHASE_LOG_SERVER
 GROUP BY month, user_id;
+```
 
 
-
-
+```sql
 --New Users Participation in Battles (1/3/7/14 Days Since Registration):
 
 -- 1 Day Since Registration
