@@ -50,6 +50,8 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
 ### Dashboard Samples
 
+**The below dashboard samples are fed real-time data through SQL queries connecting directly to the data warehousing solution being used - once hosted in a domain with proper access right setup, it is completely interactive.
+
 - Detailed breakdown of investment liquidity
 
 ![Branching](https://raw.githubusercontent.com/Akis-M/Akis-M.github.io/main/assets/img/Liquidity%20of%20investments.png)
@@ -58,7 +60,7 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
 ![Branching](https://raw.githubusercontent.com/Akis-M/Akis-M.github.io/main/assets/img/ROI%20analysis.png)
 
--Detailed break down of income statement to determine efficacy of campaign performance
+- Detailed break down of income statement to determine efficacy of campaign performance
 
 ![Branching](https://raw.githubusercontent.com/Akis-M/Akis-M.github.io/main/assets/img/Campaign%20Performance%20Summary.png)
 
