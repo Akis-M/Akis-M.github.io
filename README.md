@@ -10,7 +10,7 @@ Life-long learner, AI & Big Data enthusiast
 ### Work Experience
 Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
-**Some of the projects I've worked on involve but are not limited to:**
+**Some of the projects I've led include but are not limited to:**
 
 - Real-Time Streaming Data Platform
   
