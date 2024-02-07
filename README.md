@@ -50,6 +50,18 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
 ### Dashboard Samples
 
+- Detailed breakdown of investment liquidity
+
+![Branching](https://raw.githubusercontent.com/Akis-M/Akis-M.github.io/main/assets/img/Liquidity%20of%20investments.png)
+
+- Trend analysis of return on investment
+
+![Branching](https://raw.githubusercontent.com/Akis-M/Akis-M.github.io/main/assets/img/ROI%20analysis.png)
+
+-Detailed break down of income statement to determine efficacy of campaign performance
+
+![Branching](https://raw.githubusercontent.com/Akis-M/Akis-M.github.io/main/assets/img/Campaign%20Performance%20Summary.png)
+
 ### Other Projects
 
 - End-to-end Data Pipeline for user streaming data collection, storage and analysis from a mobile game
