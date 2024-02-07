@@ -9,6 +9,9 @@ Life-long learner, AI & Big Data enthusiast
 
 ### Work Experience
 Data Solutions Engineer @ PricewaterhouseCoopers Ltd
+
+**Some of the projects I've worked on involve but are not limited to:**
+
 - Real-Time Streaming Data Platform
   
 **Project Vision:** To build a data platform as a web-app, integrated with the company's ERP and databases, that can handle large volumes of structured and semi-structured data in real time, transform it into accounting double entries and post it into the ERP accordingly. All operations and records must also be stored and maintained effectively and efficiently in the data warehouse. Clickstream data must also be analyzed in real time to provide insights that will assist the continuous improvement/continuous development effort. For data security and monitoring best practises, data anomalies must be detected in real-time and the relevant teams must be notified immediately.
@@ -50,7 +53,7 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
 ### Dashboard Samples
 
-**The below dashboard samples are fed real-time data through SQL queries connecting directly to the data warehousing solution being used - once hosted in a domain with proper access right setup, it is completely interactive.
+**The below dashboard samples are one of many BI solutions I've worked on. They are fed real-time data through SQL queries connecting directly to the data warehousing solution being used - once hosted in a domain with proper access right setup, it is completely interactive. Dummy data is displayed in screenshots for demo purposes.**
 
 - Detailed breakdown of investment liquidity
 
