@@ -53,3 +53,382 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 ### Other Projects
 
 - End-to-end Data Pipeline for user streaming data collection, storage and analysis from a mobile game
+
+### Section 1 - Data Pipeline Design Overview
+
+### Section 2 - Sample Python scripts for data ingestion with Kinesis, preprocessing and loading to S3 with AWS Lambdas, workflow orchestration with Airflow DAG
+
+```python
+import boto3
+import json
+import base64
+import csv
+from io import StringIO
+
+def lambda_handler(event, context):
+  s3_client = boto3.client('s3')
+  bucket_name = 'your-s3-bucket' # Replace with your actual bucket name
+
+  for record in event['Records']:
+    # Decode the data from Kinesis record
+    payload = json.loads(base64.b64decode(record['kinesis']['data']))
+
+    # Convert JSON to CSV
+    csv_data = json_to_csv(payload)
+
+    # Save to S3 as CSV
+    try:
+      s3_client.put_object(
+        Bucket=bucket_name,
+        Key=f'processed_data/{payload["user_id"]}.csv',
+        Body=csv_data
+      )
+    except Exception as e:
+      # Handle exceptions (e.g., logging)
+      print(f"Error processing or saving data: {e}")
+def json_to_csv(data):
+  # Convert a flat JSON object to a CSV string
+  csv_buffer = StringIO()
+  writer = csv.writer(csv_buffer)
+  writer.writerow(data.keys()) # header row
+  writer.writerow(data.values()) # data row
+
+  return csv_buffer.getvalue()
+
+def preprocess_data(data):
+  # Implement any data preprocessing logic here if needed
+  return data
+```
+
+### Section 3 - Detailed Snowflake SQL queries and rationale for analyzing user data
+
+```sql
+--Active Users
+
+-- Daily Active Users (DAU)
+SELECT COUNT(DISTINCT USER_ID) AS active_users,         --DISTINCT must be used to ensure users are only counted once per day regardless of how many times they log in
+       DATE_TRUNC('day', EVENT_TIMESTAMP) AS date	--We want to group by day so we're cutting the date from the event timestamp down to the start of each day
+FROM LOGIN						--We're selecting the distinct user_Ids as active users from the login table
+GROUP BY date;						--Grouping by days (which we defined earlier as date)
+
+-- Monthly Active Users (MAU)
+SELECT COUNT(DISTINCT USER_ID) AS active_users,		--DISTINCT must be used to ensure users are only counted once per month regardless of how many times they log in
+       DATE_TRUNC('month', EVENT_TIMESTAMP) AS month	--We want to group by month so we're cutting the date from the event timestamp down to the start of the month
+FROM LOGIN						--We're selecting the distinct user_Ids as active users from the login table
+GROUP BY month;						--Grouping by months (which we defined earlier as month)
+
+-- Weekly Active Users (WAU)				
+SELECT COUNT(DISTINCT USER_ID) AS active_users,		--DISTINCT must be used to ensure users are only counted once per month regardless of how many times they log in
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week	--We want to group by week so we're cutting the date from the event timestamp down to the start of the week
+FROM LOGIN						--We're selecting the distinct user_Ids as active users from the login table
+GROUP BY week;						--Grouping by weeks (which we defined earlier as week)
+
+--New Users
+
+-- Daily New Users
+SELECT COUNT(DISTINCT USER_ID) AS new_users,		--DISTINCT must be used to ensure new users are only counted once, in case for some reason the same user_id appears twice in the new_user table
+       DATE_TRUNC('day', EVENT_TIMESTAMP) AS date	--We want to group by day so we're cutting the date from the event timestamp down to the start of each day
+FROM NEW_USER						--This time we're selecting user.ids from the new user table and not the login table, as we care about new users not active users.
+GROUP BY date;						--Grouping by days (which we defined earlier as date)
+
+-- Monthly New Users
+SELECT COUNT(DISTINCT USER_ID) AS new_users,		--DISTINCT must be used to ensure new users are only counted once, in case for some reason the same user_id appears twice in the new_user table
+       DATE_TRUNC('month', EVENT_TIMESTAMP) AS month	--We want to group by month so we're cutting the date from the event timestamp down to the start of each month
+FROM NEW_USER						--This time we're selecting user.ids from the new user table and not the login table, as we care about new users not active users.
+GROUP BY month;						--Grouping by months (which we defined earlier as month)
+
+-- Weekly New Users
+SELECT COUNT(DISTINCT USER_ID) AS new_users,		--DISTINCT must be used to ensure new users are only counted once, in case for some reason the same user_id appears twice in the new_user table
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week	--We want to group by week so we're cutting the date from the event timestamp down to the start of each week
+FROM NEW_USER						--This time we're selecting user.ids from the new user table and not the login table, as we care about new users not active users.
+GROUP BY week;						--Grouping by week (which we defined earlier as week)
+
+
+
+--Revenue
+
+-- Daily Revenue
+SELECT SUM(USD_COST) AS revenue,			--We use the sum function to sum up the USD cost column which we're assuming is the column that indicates the amount the user spent, in order to calculate total revenue
+       DATE_TRUNC('day', EVENT_TIMESTAMP) AS date	--We want to group by day so we're cutting the date from the event timestamp down to the start of each day
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting this data from the in app purchase log table as it contains the relevant info we need for this metric
+GROUP BY date;						--Grouping by day (which we defined earlier as date)
+
+-- Monthly Revenue
+SELECT SUM(USD_COST) AS revenue,			--We use the sum function to sum up the USD cost column which we're assuming is the column that indicates the amount the user spent, in order to calculate total revenue
+       DATE_TRUNC('month', EVENT_TIMESTAMP) AS month	--We want to group by month so we're cutting the date from the event timestamp down to the start of each month
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting this data from the in app purchase log table as it contains the relevant info we need for this metric
+GROUP BY month;						--Grouping by month (which we defined earlier as month)
+
+-- Weekly Revenue
+SELECT SUM(USD_COST) AS revenue,			--We use the sum function to sum up the USD cost column which we're assuming is the column that indicates the amount the user spent, in order to calculate total revenue
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week	--We want to group by week so we're cutting the date from the event timestamp down to the start of each week
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting this data from the in app purchase log table as it contains the relevant info we need for this metric
+GROUP BY week;						--Grouping by week (which we defined earlier as week)
+
+
+
+--Spenders (Buyers)
+
+-- Daily Spenders
+SELECT COUNT(DISTINCT USER_ID) AS spenders,		--Since we want to count the number of spenders, and the same spender might appear more than once in the purchases table, we use the distinct clause on user_id
+       DATE_TRUNC('day', EVENT_TIMESTAMP) AS date	--We want to group by day so we're cutting the date from the event timestamp down to the start of each day
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting from the purchases table as that's where the spending information is
+WHERE USD_COST > 0					--Again we're assuming this is the amount each user spent. Since we want spenders, this amount must be bigger than 0 to count as a spender
+GROUP BY date;						--Grouping by day (which we defined earlier as date)
+
+-- Monthly Spenders
+SELECT COUNT(DISTINCT USER_ID) AS spenders,		--Since we want to count the number of spenders, and the same spender might appear more than once in the purchases table, we use the distinct clause on user_id
+       DATE_TRUNC('month', EVENT_TIMESTAMP) AS month	--We want to group by month so we're cutting the date from the event timestamp down to the start of each month
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting from the purchases table as that's where the spending information is
+WHERE USD_COST > 0					--Again we're assuming this is the amount each user spent. Since we want spenders, this amount must be bigger than 0 to count as a spender
+GROUP BY month;						--Grouping by month (which we defined earlier as month)
+
+-- Weekly Spenders
+SELECT COUNT(DISTINCT USER_ID) AS spenders,		--Since we want to count the number of spenders, and the same spender might appear more than once in the purchases table, we use the distinct clause on user_id
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week	--We want to group by week so we're cutting the date from the event timestamp down to the start of each week
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting from the purchases table as that's where the spending information is
+WHERE USD_COST > 0					--Again we're assuming this is the amount each user spent. Since we want spenders, this amount must be bigger than 0 to count as a spender
+GROUP BY week;						--Grouping by week (which we defined earlier as week)
+
+
+
+--ARPU (Average Revenue Per User)
+
+-- Daily ARPU
+SELECT SUM(USD_COST) / COUNT(DISTINCT USER_ID) AS arpu, --To find the overall average revenue per user we must find the total revenue (sum(usd cost)) and divide it by the number of unique user_ids (Count(distinct userID)). If instead we want to see the average amount that each different user personally spends taking into account all their transactions in that period, we will use the AVG as ARPU instead
+       DATE_TRUNC('day', EVENT_TIMESTAMP) AS date,	--We want to group by day so we're cutting the date from the event timestamp down to the start of each day
+       user_id AS USER					--We also want to group by user and giving it a name here for easier readability of the query
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting the relevant info from the purchases table
+GROUP BY date, user_id;					--Grouping by day (which we defined earlier as date) and user_id (here i forgot to use the name that i already defined earlier)
+
+-- Monthly ARPU
+SELECT SUM(USD_COST) / COUNT(DISTINCT USER_ID) AS arpu, --To find the overall average revenue per user we must find the total revenue (sum(usd cost)) and divide it by the number of unique user_ids (Count(distinct userID)). If instead we want to see the average amount that each different user personally spends taking into account all their transactions in that period, we will use the AVG as ARPU instead
+       DATE_TRUNC('month', EVENT_TIMESTAMP) AS month,	--We want to group by month so we're cutting the date from the event timestamp down to the start of each month
+       user_id AS USER					--We also want to group by user and giving it a name here for easier readability of the query
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting the relevant info from the purchases table
+GROUP BY month, user_id;				--Grouping by month (which we defined earlier as month) and user_id (here i forgot to use the name that i already defined earlier)
+
+-- Weekly ARPU
+SELECT SUM(USD_COST) / COUNT(DISTINCT USER_ID) AS arpu,	--To find the overall average revenue per user we must find the total revenue (sum(usd cost)) and divide it by the number of unique user_ids (Count(distinct userID)). If instead we want to see the average amount that each different user personally spends taking into account all their transactions in that period, we will use the AVG as ARPU instead
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week,	--We want to group by week so we're cutting the date from the event timestamp down to the start of each week
+       user_id AS USER					--We also want to group by user and giving it a name here for easier readability of the query
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting the relevant info from the purchases table
+GROUP BY week, user_id;					--Grouping by week (which we defined earlier as week) and user_id (here i forgot to use the name that i already defined earlier)
+
+
+
+--ARPPU (Average Revenue Per Paying User)
+
+-- Daily ARPPU
+SELECT SUM(USD_COST) / COUNT(DISTINCT USER_ID) AS arppu, --To find the overall average revenue per user we must find the total revenue (sum(usd cost)) and divide it by the number of unique user_ids (Count(distinct userID)). If instead we want to see the average amount that each different user personally spends taking into account all their transactions in that period, we will use the AVG as ARPU instead	
+       DATE_TRUNC('day', EVENT_TIMESTAMP) AS date,	 --We want to group by day so we're cutting the date from the event timestamp down to the start of each day
+       user_id AS PAYING_USER				 --We also want to group by user and giving it a name here for easier readability of the query
+FROM IN_APP_PURCHASE_LOG_SERVER			         --We're selecting the relevant info from the purchases table 
+WHERE USD_COST > 0					 --We're defining paying user as any user that has made at least one purchase of over 0 usd
+GROUP BY date, PAYING_USER;				 --Grouping by day (which we defined earlier as date) and user_id
+
+-- Monthly ARPPU
+SELECT SUM(USD_COST) / COUNT(DISTINCT USER_ID) AS arppu,--To find the overall average revenue per user we must find the total revenue (sum(usd cost)) and divide it by the number of unique user_ids (Count(distinct userID)). If instead we want to see the average amount that each different user personally spends taking into account all their transactions in that period, we will use the AVG as ARPU instead
+       DATE_TRUNC('month', EVENT_TIMESTAMP) AS month,	--We want to group by month so we're cutting the date from the event timestamp down to the start of each month
+       user_id AS PAYING_USER				--We also want to group by user and giving it a name here for easier readability of the query
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting the relevant info from the purchases table
+WHERE USD_COST > 0					--We're defining paying user as any user that has made at least one purchase of over 0 usd
+GROUP BY month, PAYING_USER;;				--Here I accidentally used a double semicolon. Grouping by month (which we defined earlier as month) and user_id 
+
+-- Weekly ARPPU
+SELECT SUM(USD_COST) / COUNT(DISTINCT USER_ID) AS arppu,--To find the overall average revenue per user we must find the total revenue (sum(usd cost)) and divide it by the number of unique user_ids (Count(distinct userID)). If instead we want to see the average amount that each different user personally spends taking into account all their transactions in that period, we will use the AVG as ARPU instead
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week,	--We want to group by week so we're cutting the date from the event timestamp down to the start of each week
+       user_id AS PAYING_USER				--We also want to group by user and giving it a name here for easier readability of the query
+FROM IN_APP_PURCHASE_LOG_SERVER				--We're selecting the relevant info from the purchases table
+WHERE USD_COST > 0					--We're defining paying user as any user that has made at least one purchase of over 0 usd
+GROUP BY week, PAYING_USER;				--Grouping by week (which we defined earlier as week) and user_id
+
+/*
+1 Day, 3 Day, 7 Day Retention Rates
+
+For the retetion rate queries, we're assuming that the retention rate definition is following a "Strict Next-Day Retention" rule. Meaning that a user is counted as retained for the 1 day rate only if they log in exactly the next day, but not if they log in the day after that. Users that log in 3 days later count towards the 3 day retention rate but not the 1 day retention rate, etc. If we were to define retention rate differently and assume that 1 day retention rate should include all users that login again within any 24 period after their registration, then the query would change to indicate WHEN DATE(L.EVENT_TIMESTAMP) <= DATE(NU.EVENT_TIMESTAMP) + INTERVAL '1 DAYT'... and so on. But this definition would create overlaps of users between each bucket. The users retained from day 1 would also count towards the 3 day retained rate etc, skewing results.
+*/
+
+--1 Day Retention Rate. 
+
+SELECT DATE(NU.EVENT_TIMESTAMP) AS Registration_Date, --We must use the date function to remove timestamp information from the dates we're comparing. We're taking registration date as the date from the new user table marked defined as NU
+       COUNT(DISTINCT CASE WHEN DATE(L.EVENT_TIMESTAMP) = DATE(NU.EVENT_TIMESTAMP) + INTERVAL '1 DAY' THEN L.USER_ID END) / COUNT(DISTINCT NU.USER_ID)::FLOAT AS One_Day_Retention_Rate --We're checking if the difference between the new user's registration and the new user's first login is 1 day. If yes, that user id is counted. If no, it returns null. Then we divide this number by all total new users to find the rate and we also convert to float to properly read the rate without truncating decimals.
+FROM   NEW_USER NU				      --Defining the new_user table as NU
+LEFT JOIN LOGIN L ON NU.USER_ID = L.USER_ID	      --We're using a left join because we want to see all records from the new user table even if there's no matching record in the logins, because we must consider all new users to calculate retention rate, including those who didnt login again after registration.
+WHERE DATE(L.EVENT_TIMESTAMP) BETWEEN DATE(NU.EVENT_TIMESTAMP) AND DATE(NU.EVENT_TIMESTAMP) + INTERVAL '1 DAY'	--the login date from the login table should be within a 1 day interval since the registration date from the new user table
+GROUP BY Registration_Date;			      --We group the results by registration date
+
+--3 Day Retention Rate. Same logic as previous query, except we need the BETWEEN statement this time, to make sure the only users counted as retained are from the 3rd day only, but not after the 4th day or before the 3rd day.
+
+SELECT  DATE(NU.EVENT_TIMESTAMP) AS Registration_Date, --We must use the date function to remove timestamp information from the dates we're comparing. We're taking registration date as the date from the new user table marked defined as NU
+        COUNT(DISTINCT CASE WHEN DATE(L.EVENT_TIMESTAMP) BETWEEN DATE(NU.EVENT_TIMESTAMP) + INTERVAL '3 DAY' AND DATE(NU.EVENT_TIMESTAMP) + INTERVAL '4 DAY' THEN L.USER_ID END) / COUNT(DISTINCT NU.USER_ID)::FLOAT AS Three_Day_Retention_Rate --we need the BETWEEN statement this time, to make sure the only users counted as retained are from the 3rd day only, but not after the 4th day or before the 3rd day. If yes, that user id is counted. If no, it returns null. Then we divide this number by all total new users to find the rate and we also convert to float to properly read the rate without truncating decimals.
+FROM    NEW_USER NU					--Defining the new_user table as NU
+LEFT JOIN LOGIN L ON NU.USER_ID = L.USER_ID		--We're using a left join because we want to see all records from the new user table even if there's no matching record in the logins, because we must consider all new users to calculate retention rate, including those who didnt login again after registration.
+WHERE   DATE(L.EVENT_TIMESTAMP) BETWEEN DATE(NU.EVENT_TIMESTAMP) AND DATE(NU.EVENT_TIMESTAMP) + INTERVAL '4 DAY' --Here I accidentally forgot to make sure that we should be filtering for logins specifically on 3rd day after registration, so before the AND we also need to add INTERVAL '3 DAY', like I did in the above distinct count
+GROUP BY Registration_Date;				--We group the results by registration date
+
+--7 Day Retention Rate. Same logic as previous query. We need the BETWEEN statement again, to make sure the only users counted as retained are from the 7th day only, but not after the 8th day or before the 7th day.
+
+SELECT  DATE(NU.EVENT_TIMESTAMP) AS Registration_Date, --We must use the date function to remove timestamp information from the dates we're comparing. We're taking registration date as the date from the new user table marked defined as NU
+        COUNT(DISTINCT CASE WHEN DATE(L.EVENT_TIMESTAMP) BETWEEN DATE(NU.EVENT_TIMESTAMP) + INTERVAL '7 DAY' AND DATE(NU.EVENT_TIMESTAMP) + INTERVAL '8 DAY' THEN L.USER_ID END) / COUNT(DISTINCT NU.USER_ID)::FLOAT AS Seven_Day_Retention_Rate --we need the BETWEEN statement this time, to make sure the only users counted as retained are from the 3rd day only, but not after the 4th day or before the 3rd day. If yes, that user id is counted. If no, it returns null. Then we divide this number by all total new users to find the rate and we also convert to float to properly read the rate without truncating decimals.
+FROM    NEW_USER NU				       --Defining the new_user table as NU
+LEFT JOIN LOGIN L ON NU.USER_ID = L.USER_ID	       --We're using a left join because we want to see all records from the new user table even if there's no matching record in the logins, because we must consider all new users to calculate retention rate, including those who didnt login again after registration.
+WHERE   DATE(L.EVENT_TIMESTAMP) BETWEEN DATE(NU.EVENT_TIMESTAMP) AND DATE(NU.EVENT_TIMESTAMP) + INTERVAL '8 DAY' --Again accidentally forgot to add the INTERVAL '7 DAY' part before AND
+GROUP BY Registration_Date;			       --We group the results by registration date
+
+
+--7 Day Conversion Rate, where conversion definition is assumed to be a user making any purchase within 7 days from their registration day
+
+SELECT  DATE_TRUNC('week', u.EVENT_TIMESTAMP) AS Registration_Week,	--We use the date_trunc function cut the date down to the start of each week since we want weekly conversion rates
+        COUNT(DISTINCT u.USER_ID) AS Total_New_Users,			
+        COUNT(DISTINCT CASE 
+            WHEN p.EVENT_TIMESTAMP <= u.EVENT_TIMESTAMP + INTERVAL '7 days' THEN p.USER_ID --If the purchase was made within 7 days or less from registration, then count it as converted, else null
+            ELSE NULL 
+            END) AS Users_Converted_Within_7_Days,
+        COUNT(DISTINCT CASE 								   --If the purchase was made within 7 days or less from registration then count it and divide with total distinct users to get the conversion rate
+            WHEN p.EVENT_TIMESTAMP <= u.EVENT_TIMESTAMP + INTERVAL '7 days' THEN p.USER_ID 
+            ELSE NULL 
+            END)::FLOAT / COUNT(DISTINCT u.USER_ID) AS Seven_Day_Conversion_Rate --We only need to type cast just one of the 2 numbers involved in the division as float, and because of implicit type conversion the result will be float too even if the other number was an integer.
+FROM    NEW_USER u
+LEFT JOIN IN_APP_PURCHASE_LOG_SERVER p ON u.USER_ID = p.USER_ID		--Here we use a left join because we want to make sure that all new users (u.USER_ID) are included in the analysis even if they didn't make a purchase
+GROUP BY DATE_TRUNC('week', u.EVENT_TIMESTAMP)				--In some database systems we might not be able to use the alias we defined next to the group by clause is because even though we write it at the end, it is actually evaluated before the select clause. But in more modern ones like postgresql and snowflake, you can use the alias anyway.
+ORDER BY Registration_Week;
+
+
+--Ships Owned By Every User Every Day. Amount of ships owned should be amount bought (SC<0) minus amount sold(SC>0) and not simply amount of ships bought.
+
+SELECT EVENT_TIMESTAMP::date AS date,					--We're typecasting the datetime timestamp into just date. We can also use the date function instead of :: but I just wanted to showcase a different way to write it
+       USER_ID,
+       COUNT(DISTINCT CASE WHEN SC_AMOUNT < 0 THEN SHIP_ID END) - COUNT(DISTINCT CASE WHEN SC_AMOUNT > 0 THEN SHIP_ID END) AS unique_ships_owned	--Ships ownwed is count of amount bought (SC<0) ship_ids minus count of amount sold (SC>0) ship_ids
+FROM   SHIP_TRANSACTION_LOG
+GROUP BY date, USER_ID;
+
+--Daily Ships Popularity. Here we're counting the number of users owning a particular ship on each given day, and ordering the list in descending order so that the most popular ship is at the top. Again, the most "popular" ships is assumed to be the one that the most users currently own, and not the one that is most bought. The rationale is that a ship that is bought 1000 times but then sold immediately 900 times should not be considered more popular than a ship that was bought 500 times but never sold.
+
+SELECT  EVENT_TIMESTAMP::date AS date,  
+        SHIP_ID,
+        COUNT(DISTINCT CASE WHEN SC_AMOUNT < 0 THEN USER_ID END) - COUNT(DISTINCT CASE WHEN SC_AMOUNT > 0 THEN USER_ID END) AS users_owning_ship
+FROM    SHIP_TRANSACTION_LOG
+GROUP BY    date, SHIP_ID
+ORDER BY    users_owning_ship DESC;
+
+--Amount of Battles, Logins, Days Since Registration Before First Purchase.
+
+--To write this query in a clean and optimized way, first we will define a common table expression to find the date of the first purchase per user 
+WITH FirstPurchase AS (
+    SELECT USER_ID,
+           MIN(EVENT_TIMESTAMP) AS FirstPurchaseDate --Minimum date of purchase per user, indicating their first purchase
+    FROM   IN_APP_PURCHASE_LOG_SERVER
+    GROUP BY USER_ID
+),
+
+--We then define another CTE to count number of battles each user participated in before their first purchase
+BattlesBeforePurchase AS (
+    SELECT fp.USER_ID,
+           COUNT(*) AS BattlesBeforeFirstPurchase
+    FROM   FirstPurchase fp
+    JOIN   MULTIPLAYER_BATTLE_STARTED mbs ON fp.USER_ID = mbs.USER_ID
+    WHERE  mbs.EVENT_TIMESTAMP < fp.FirstPurchaseDate -- Only consider battles that occurred before the first purchase
+    GROUP BY fp.USER_ID
+),
+
+--Same logic as above but for logins
+LoginsBeforePurchase AS (
+    SELECT fp.USER_ID,
+           COUNT(*) AS LoginsBeforeFirstPurchase
+    FROM   FirstPurchase fp
+    JOIN   LOGIN l ON fp.USER_ID = l.USER_ID
+    WHERE  l.EVENT_TIMESTAMP < fp.FirstPurchaseDate
+    GROUP BY fp.USER_ID
+),
+
+--Same logic as above but instead of counting number of X event, we're counting days since registration.
+DaysSinceRegistration AS (
+    SELECT fp.USER_ID,
+           DATEDIFF(day, nu.EVENT_TIMESTAMP, fp.FirstPurchaseDate) AS DaysSinceRegistrationBeforeFirstPurchase
+    FROM   FirstPurchase fp
+    JOIN   NEW_USER nu ON fp.USER_ID = nu.USER_ID
+)
+
+--This final section of the query combines the data from the above CTEs for each user. Since we're using LEFT JOINS to combine the data, there is the possibility of nulls. I chose to use COALESCE to handle users with 0 battles/logins/days before first purchase and get rid of null values that could possibly interfere with downstream analysis.
+SELECT  fp.USER_ID,
+        COALESCE(bbp.BattlesBeforeFirstPurchase, 0) AS BattlesBeforeFirstPurchase,
+        COALESCE(lbp.LoginsBeforeFirstPurchase, 0) AS LoginsBeforeFirstPurchase,
+        COALESCE(dsr.DaysSinceRegistrationBeforeFirstPurchase, 0) AS DaysSinceRegistrationBeforeFirstPurchase
+FROM    FirstPurchase fp
+LEFT JOIN BattlesBeforePurchase bbp ON fp.USER_ID = bbp.USER_ID
+LEFT JOIN LoginsBeforePurchase lbp ON fp.USER_ID = lbp.USER_ID
+LEFT JOIN DaysSinceRegistration dsr ON fp.USER_ID = dsr.USER_ID;
+
+--Daily/Weekly/Monthly Revenue per User.
+
+-- Daily Revenue per User
+SELECT SUM(USD_COST) AS revenue_per_user,
+       DATE_TRUNC('day', EVENT_TIMESTAMP) AS date,
+       user_id
+FROM IN_APP_PURCHASE_LOG_SERVER
+GROUP BY date, user_id;
+
+-- Weekly Revenue per User
+SELECT SUM(USD_COST) AS revenue_per_user,
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week,
+       user_id      
+FROM IN_APP_PURCHASE_LOG_SERVER
+GROUP BY week, user_id;
+
+-- Monthly Revenue per User
+SELECT SUM(USD_COST) AS revenue_per_user,
+       DATE_TRUNC('month', EVENT_TIMESTAMP) AS month,
+       user_id
+FROM IN_APP_PURCHASE_LOG_SERVER
+GROUP BY month, user_id;
+
+
+
+
+--New Users Participation in Battles (1/3/7/14 Days Since Registration):
+
+-- 1 Day Since Registration
+SELECT COUNT(DISTINCT b.USER_ID) AS new_users_battles,
+       DATE_TRUNC('week', b.EVENT_TIMESTAMP) AS week
+FROM MULTIPLAYER_BATTLE_STARTED b
+JOIN NEW_USER n ON b.USER_ID = n.USER_ID
+              AND DATE_TRUNC('day', b.EVENT_TIMESTAMP) <= DATE_TRUNC('day', n.EVENT_TIMESTAMP) + INTERVAL '1 day'
+              AND b.EVENT_TIMESTAMP >= n.EVENT_TIMESTAMP
+GROUP BY week;
+
+-- 3 Days Since Registration
+SELECT COUNT(DISTINCT b.USER_ID) AS new_users_battles,
+       DATE_TRUNC('week', b.EVENT_TIMESTAMP) AS week
+FROM MULTIPLAYER_BATTLE_STARTED b
+JOIN NEW_USER n ON b.USER_ID = n.USER_ID
+              AND DATE_TRUNC('day', b.EVENT_TIMESTAMP) <= DATE_TRUNC('day', n.EVENT_TIMESTAMP) + INTERVAL '3 days'
+              AND b.EVENT_TIMESTAMP >= n.EVENT_TIMESTAMP
+GROUP BY week;
+
+-- 7 Days Since Registration
+SELECT COUNT(DISTINCT b.USER_ID) AS new_users_battles,
+       DATE_TRUNC('week', b.EVENT_TIMESTAMP) AS week
+FROM MULTIPLAYER_BATTLE_STARTED b
+JOIN NEW_USER n ON b.USER_ID = n.USER_ID
+              AND DATE_TRUNC('day', b.EVENT_TIMESTAMP) <= DATE_TRUNC('day', n.EVENT_TIMESTAMP) + INTERVAL '7 days'
+              AND b.EVENT_TIMESTAMP >= n.EVENT_TIMESTAMP
+GROUP BY week;
+
+-- 14 Days Since Registration
+SELECT COUNT(DISTINCT b.USER_ID) AS new_users_battles,
+       DATE_TRUNC('week', b.EVENT_TIMESTAMP) AS week
+FROM MULTIPLAYER_BATTLE_STARTED b
+JOIN NEW_USER n ON b.USER_ID = n.USER_ID
+              AND DATE_TRUNC('day', b.EVENT_TIMESTAMP) <= DATE_TRUNC('day', n.EVENT_TIMESTAMP) + INTERVAL '14 days'
+              AND b.EVENT_TIMESTAMP >= n.EVENT_TIMESTAMP
+GROUP BY week;
+
+
+--Battle Participation by Active Users. Assumed that what the exercise wanted is weekly battle participation by active users, as no timeframe was specified:
+SELECT COUNT(*) AS active_users_battles,
+       DATE_TRUNC('week', EVENT_TIMESTAMP) AS week
+FROM MULTIPLAYER_BATTLE_STARTED
+WHERE USER_ID IN (SELECT USER_ID FROM LOGIN)
+GROUP BY week;
+```
