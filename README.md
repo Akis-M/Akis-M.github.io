@@ -51,4 +51,5 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 ### Dashboard Samples
 
 ### Other Projects
-Real Time Data Platform
+
+- End-to-end Data Pipeline for user streaming data collection, storage and analysis from a mobile game
