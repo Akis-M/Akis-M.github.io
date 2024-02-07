@@ -48,5 +48,7 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
 **Technical Details:** Leveraged Apache Kafka for real-time data ingestion, with custom Kafka Streams applications to perform on-the-fly data quality checks. Integrated DataDog for comprehensive monitoring of data pipelines and Kafka metrics, and utilized PagerDuty for automated incident management and alerting. This setup allowed for immediate detection and notification of data anomalies, streamlining the resolution process.
 
-### Projects
+### Dashboard Samples
+
+### Other Projects
 Real Time Data Platform
