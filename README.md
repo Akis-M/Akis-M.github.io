@@ -56,6 +56,8 @@ Data Solutions Engineer @ PricewaterhouseCoopers Ltd
 
 ### Section 1 - Data Pipeline Design Overview
 
+![Branching](https://raw.githubusercontent.com/Akis-M/Akis-M.github.io/main/assets/img/Data_Pipeline_Design_Overview.png)
+
 ### Section 2 - Sample Python scripts for data ingestion with Kinesis, preprocessing and loading to S3 with AWS Lambdas, workflow orchestration with Airflow DAG
 
 As an example, the below script can be used to ingest our data into AWS Kinesis
